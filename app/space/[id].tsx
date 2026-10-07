@@ -1,20 +1,33 @@
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Linking } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { dummyLibraries } from "../models/Library";
-import { getTagStyle, baseTagStyle } from '../styles/tags';
+import { Space } from "../models/Space";
+import { Library } from "../models/Library";
+import { fetchSpace } from "../services/spaceService";
+import { fetchLibraries } from "../services/libraryService";
+import { TagType, getTagStyle, baseTagStyle } from '../styles/tags';
 import { WebViewModal } from '../components/WebViewModal';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import React from "react";
 import { colors } from '../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function LibraryDetails() {
+export default function SpaceDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const library = dummyLibraries.find(lib => lib.id === parseInt(id));
+  const [space, setSpace] = useState<Space | undefined>();
+  const [library, setLibrary] = useState<Library | undefined>();
   const [isWebViewVisible, setIsWebViewVisible] = useState(false);
   const [isHelpViewVisible, setIsHelpViewVisible] = useState(false);
 
-  if (!library) return null;
+  useEffect(() => {
+    Promise.all([fetchSpace(Number(id)), fetchLibraries()])
+      .then(([spaceData, libraries]) => {
+        setSpace(spaceData);
+        setLibrary(spaceData?.libraryId === undefined ? undefined : libraries.get(spaceData.libraryId));
+      })
+      .catch(error => console.error('Error loading space:', error));
+  }, [id]);
+
+  if (!space) return null;
 
   const handleCheckAvailability = () => {
     setIsWebViewVisible(true);
@@ -24,10 +37,22 @@ export default function LibraryDetails() {
     setIsHelpViewVisible(true);
   };
 
+  const sections: { title: string; type: TagType; values: string[] }[] = [
+    { title: 'Space Type', type: 'spaceType', values: space.spaceTypes },
+    { title: 'Features', type: 'amenity', values: space.accessible ? [...space.amenities, 'Accessible'] : space.amenities },
+    { title: 'Sound Level', type: 'soundLevel', values: space.soundLevels },
+    { title: 'Good For', type: 'activity', values: space.activities },
+    { title: 'Facilities', type: 'amenity', values: space.support },
+    { title: 'Available For', type: 'audience', values: space.audiences },
+  ];
+
   const handleGetDirections = () => {
-    const destination = encodeURIComponent(`${library.spaceInfo.library}, Cornell University, Ithaca, NY`);
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
-    Linking.openURL(url);
+    if (library?.mapUrl) {
+      Linking.openURL(library.mapUrl);
+      return;
+    }
+    const destination = encodeURIComponent(`${library?.name ?? space.title}, Cornell University, Ithaca, NY`);
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destination}`);
   };
 
   return (
@@ -35,7 +60,7 @@ export default function LibraryDetails() {
       <ScrollView style={styles.container}>
         <View style={styles.imageContainer}>
           <Image
-            source={library.imageUrl ? { uri: library.imageUrl } : require('../../assets/images/placeholder.avif')}
+            source={space.imageUrl ? { uri: space.imageUrl } : require('../../assets/images/placeholder.avif')}
             style={styles.image}
             resizeMode="cover"
           />
@@ -43,8 +68,8 @@ export default function LibraryDetails() {
         <View style={styles.content}>
           <View style={styles.headerContainer}>
             <View>
-              <Text style={styles.title}>{library.title}</Text>
-              <Text style={styles.location}>{library.spaceInfo.library}</Text>
+              <Text style={styles.title}>{space.title}</Text>
+              {library && <Text style={styles.location}>{library.name}</Text>}
             </View>
             <TouchableOpacity 
               style={[styles.directionsButton]}
@@ -53,68 +78,40 @@ export default function LibraryDetails() {
               <Ionicons name="navigate" size={24} color={colors.info} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.description}>{library.spaceInfo.description}</Text>
-          
-          {library.features.spaceFeatures.length > 0 && (
+
+          {library && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Features</Text>
-              <View style={styles.tags}>
-                {library.features.spaceFeatures.map((feature, index) => (
-                  <Text key={index} style={[styles.tag, getTagStyle('spaceFeatures')]}>
-                    {feature}
-                  </Text>
-                ))}
-              </View>
+              <Text style={styles.sectionTitle}>Location</Text>
+              {library.address && <Text style={styles.description}>{library.address}</Text>}
+              {library.hoursUrl && (
+                <TouchableOpacity onPress={() => Linking.openURL(library.hoursUrl!)}>
+                  <Text style={styles.link}>Library hours</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
-          {library.features.soundLevel.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Sound Level</Text>
+          {sections.map(({ title, type, values }) => values.length > 0 && (
+            <View key={title} style={styles.section}>
+              <Text style={styles.sectionTitle}>{title}</Text>
               <View style={styles.tags}>
-                {library.features.soundLevel.map((level, index) => (
-                  <Text key={index} style={[styles.tag, getTagStyle('soundLevel')]}>
-                    {level}
+                {values.map(value => (
+                  <Text key={value} style={[styles.tag, getTagStyle(type)]}>
+                    {value}
                   </Text>
                 ))}
               </View>
             </View>
-          )}
-
-          {library.features.spaceType.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Space Type</Text>
-              <View style={styles.tags}>
-                {library.features.spaceType.map((type, index) => (
-                  <Text key={index} style={[styles.tag, getTagStyle('spaceType')]}>
-                    {type}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {library.features.audienceTypes.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Available For</Text>
-              <View style={styles.tags}>
-                {library.features.audienceTypes.map((type, index) => (
-                  <Text key={index} style={[styles.tag, getTagStyle('audienceTypes')]}>
-                    {type}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          )}
+          ))}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Reservation</Text>
             <View style={styles.tags}>
               <Text style={[styles.tag, getTagStyle('reservationType')]}>
-                {library.spaceInfo.reservationType}
+                {space.reservationType}
               </Text>
             </View>
-            {library.spaceInfo.reservationType === 'Reservable' && (
+            {space.reservationType === 'Reservable' && (
               <TouchableOpacity 
                 style={[styles.availabilityButton, { backgroundColor: colors.primary }]}
                 onPress={handleCheckAvailability}
@@ -122,7 +119,7 @@ export default function LibraryDetails() {
                 <Text style={styles.availabilityButtonText}>Book Now</Text>
               </TouchableOpacity>
             )}
-            {library.spaceInfo.reservationType === 'By request' && (
+            {space.reservationType === 'By request' && (
               <TouchableOpacity 
                 style={[styles.availabilityButton]}
                 onPress={handleGetHelp}
@@ -135,7 +132,7 @@ export default function LibraryDetails() {
       </ScrollView>
       <WebViewModal
         visible={isWebViewVisible}
-        url={`https://spaces.library.cornell.edu/space/${library.spaceInfo.spaceId}`}
+        url={space.url}
         onClose={() => setIsWebViewVisible(false)}
       />
       <WebViewModal
@@ -182,6 +179,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 4,
   },
+  link: {
+    fontSize: 16,
+    color: colors.info,
+  },
   location: {
     fontSize: 16,
     color: '#666',
@@ -209,11 +210,6 @@ const styles = StyleSheet.create({
   tag: {
     ...baseTagStyle,
   },
-  categoryTag: getTagStyle('category'),
-  soundLevelTag: getTagStyle('soundLevel'),
-  spaceTypeTag: getTagStyle('spaceType'),
-  spaceFeaturesTag: getTagStyle('spaceFeatures'),
-  audienceTypesTag: getTagStyle('audienceTypes'),
   reservationType: {
     fontSize: 16,
     color: '#333',

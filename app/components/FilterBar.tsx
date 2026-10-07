@@ -1,72 +1,33 @@
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, View } from 'react-native';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { TagType, getTagStyle } from '../styles/tags';
 import { Ionicons } from '@expo/vector-icons';
 import { FilterDropdown } from './FilterDropdown';
 import { colors } from '../styles/theme';
 import { filterStyles as styles } from '../styles/components/filter';
-import { Library } from '../models/Library';
-
-type FilterCategory = {
-  type: TagType;
-  values: string[];
-};
-
-const getUniqueValues = (arr: string[]): string[] => [...new Set(arr)];
+import { Space, FacetSelection, FACETS, FACET_KEYS, facetOptions } from '../models/Space';
+import { LibraryIndex } from '../models/Library';
 
 interface FilterBarProps {
-  selectedFilters: Set<string>;
-  onToggleFilter: (filter: string, type: TagType) => void;
-  libraries: Library[];
+  selection: FacetSelection;
+  onChange: (facet: TagType, value: string | undefined) => void;
+  onClearAll: () => void;
+  spaces: Space[];
+  libraries: LibraryIndex;
 }
 
-export function FilterBar({ selectedFilters, onToggleFilter, libraries }: FilterBarProps) {
+export function FilterBar({ selection, onChange, onClearAll, spaces, libraries }: FilterBarProps) {
   const [openCategory, setOpenCategory] = useState<TagType | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const filterRefs = useRef<{ [key: string]: View | null }>({});
 
-  const FILTER_CATEGORIES: FilterCategory[] = [
-    {
-      type: 'category',
-      values: getUniqueValues(libraries.map(lib => lib.spaceInfo.category))
-    },
-    {
-      type: 'reservationType',
-      values: getUniqueValues(libraries.map(lib => lib.spaceInfo.reservationType))
-    },
-    {
-      type: 'soundLevel',
-      values: getUniqueValues(libraries.flatMap(lib => lib.features.soundLevel))
-    },
-    {
-      type: 'spaceType',
-      values: getUniqueValues(libraries.flatMap(lib => lib.features.spaceType))
-    },
-    {
-      type: 'spaceFeatures',
-      values: getUniqueValues(libraries.flatMap(lib => lib.features.spaceFeatures))
-    },
-    {
-      type: 'audienceTypes',
-      values: getUniqueValues(libraries.flatMap(lib => lib.features.audienceTypes))
-    },
-  ] as const;
-
-  const formatCategoryName = (name: string): string => {
-    return name
-      .replace(/([A-Z])/g, ' $1').trim()
-      .replace(/^./, str => str.toUpperCase());
-  };
-
-  const handleClearAll = () => {
-    Array.from(selectedFilters).forEach(filter => {
-      const category = FILTER_CATEGORIES.find(cat => cat.values.includes(filter));
-      if (category) {
-        onToggleFilter(filter, category.type);
-      }
-    });
-  };
+  const categories = useMemo(
+    () =>
+      FACET_KEYS.map((type) => ({ type, label: FACETS[type].label, values: facetOptions(spaces, type, libraries) }))
+        .filter((category) => category.values.length > 0),
+    [spaces, libraries]
+  );
 
   const handleCategoryPress = useCallback((category: TagType) => {
     const filterRef = filterRefs.current[category];
@@ -88,20 +49,12 @@ export function FilterBar({ selectedFilters, onToggleFilter, libraries }: Filter
   };
 
   const handleSelectOption = (value: string, type: TagType) => {
-    if (value === '') {
-      const currentSelected = Array.from(selectedFilters).find(filter => 
-        FILTER_CATEGORIES.find(cat => cat.type === type)?.values.includes(filter)
-      );
-      if (currentSelected) {
-        onToggleFilter(currentSelected, type);
-      }
-    } else {
-      onToggleFilter(value, type);
-    }
+    onChange(type, value || undefined);
     setOpenCategory(null);
   };
 
-  const selectedCategory = openCategory ? FILTER_CATEGORIES.find(cat => cat.type === openCategory) : null;
+  const selectedCategory = openCategory ? categories.find(cat => cat.type === openCategory) : null;
+  const hasSelection = Object.values(selection).some(Boolean);
 
   return (
     <View style={styles.wrapper}>
@@ -111,12 +64,10 @@ export function FilterBar({ selectedFilters, onToggleFilter, libraries }: Filter
         style={styles.container}
         contentContainerStyle={styles.content}
       >
-        {FILTER_CATEGORIES.map((category) => {
-          const selectedValue = Array.from(selectedFilters).find(filter => 
-            category.values.includes(filter)
-          );
-          
-          const tagStyle = getTagStyle(category.type) || { color: colors.text, backgroundColor: colors.background };
+        {categories.map((category) => {
+          const selectedValue = selection[category.type];
+
+          const tagStyle = getTagStyle(category.type);
 
           return (
             <View 
@@ -138,7 +89,7 @@ export function FilterBar({ selectedFilters, onToggleFilter, libraries }: Filter
                     }
                   ]}
                 >
-                  {selectedValue || `All ${formatCategoryName(category.type)}`}
+                  {selectedValue || `All ${category.label}`}
                   <Ionicons 
                     name={openCategory === category.type ? "chevron-up" : "chevron-down"} 
                     size={12} 
@@ -151,9 +102,9 @@ export function FilterBar({ selectedFilters, onToggleFilter, libraries }: Filter
           );
         })}
       </ScrollView>
-      {selectedFilters.size > 0 && (
+      {hasSelection && (
         <TouchableOpacity
-          onPress={handleClearAll}
+          onPress={onClearAll}
           style={styles.clearButton}
         >
           <Ionicons name="close" size={16} color={colors.error} />
@@ -165,9 +116,7 @@ export function FilterBar({ selectedFilters, onToggleFilter, libraries }: Filter
             visible={true}
             position={dropdownPosition}
             category={selectedCategory}
-            selectedValue={Array.from(selectedFilters).find(filter => 
-              selectedCategory.values.includes(filter)
-            )}
+            selectedValue={selection[selectedCategory.type]}
             onSelect={(value) => handleSelectOption(value, selectedCategory.type)}
             onClose={() => setOpenCategory(null)}
           />
