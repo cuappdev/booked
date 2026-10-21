@@ -16,9 +16,9 @@ export default function Layout() {
         }}
       />
       <Stack.Screen
-        name="library/[id]"
+        name="space/[id]"
         options={{
-          title: "Library Details",
+          title: "Space Details",
           headerShown: true,
         }}
       />
