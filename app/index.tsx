@@ -46,7 +46,8 @@ export default function Index() {
       setError(null);
       const [spaceData, libraryData] = await Promise.all([
         fetchSpaces({ refresh }),
-        fetchLibraries({ refresh }),
+        // Libraries only add optional details, so a failure shouldn't hide the spaces.
+        fetchLibraries({ refresh }).catch((): LibraryIndex => new Map()),
       ]);
       setSpaces(spaceData);
       setLibraries(libraryData);

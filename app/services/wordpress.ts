@@ -25,7 +25,7 @@ export async function fetchAllPages<T>(url: string): Promise<T[]> {
   return [firstPage, ...remainingPages].flat();
 }
 
-const NAMED_ENTITIES: Record<string, string> = { amp: '&', quot: '"', lt: '<', gt: '>', apos: "'", nbsp: ' ' };
+const NAMED_ENTITIES: Record<string, string> = { amp: '&', quot: '"', lt: '<', gt: '>', apos: "'", nbsp: '\u00a0' };
 
 // Decodes in a single pass so decoded text is never decoded again
 // (e.g. `&amp;lt;` becomes `&lt;`, not `<`).

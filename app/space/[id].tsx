@@ -21,7 +21,8 @@ export default function SpaceDetails() {
 
   useEffect(() => {
     setIsLoading(true);
-    Promise.all([fetchSpace(Number(id)), fetchLibraries()])
+    // Libraries only add optional details, so a failure shouldn't hide the space.
+    Promise.all([fetchSpace(Number(id)), fetchLibraries().catch(() => new Map<number, Library>())])
       .then(([spaceData, libraries]) => {
         setSpace(spaceData);
         setLibrary(spaceData?.libraryId === undefined ? undefined : libraries.get(spaceData.libraryId));
