@@ -1,4 +1,4 @@
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Linking } from "react-native";
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Space } from "../models/Space";
 import { Library } from "../models/Library";
@@ -15,19 +15,36 @@ export default function SpaceDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [space, setSpace] = useState<Space | undefined>();
   const [library, setLibrary] = useState<Library | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
   const [isWebViewVisible, setIsWebViewVisible] = useState(false);
   const [isHelpViewVisible, setIsHelpViewVisible] = useState(false);
 
   useEffect(() => {
+    setIsLoading(true);
     Promise.all([fetchSpace(Number(id)), fetchLibraries()])
       .then(([spaceData, libraries]) => {
         setSpace(spaceData);
         setLibrary(spaceData?.libraryId === undefined ? undefined : libraries.get(spaceData.libraryId));
       })
-      .catch(error => console.error('Error loading space:', error));
+      .catch(error => console.error('Error loading space:', error))
+      .finally(() => setIsLoading(false));
   }, [id]);
 
-  if (!space) return null;
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!space) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Text style={styles.description}>Couldn't load this space.</Text>
+      </View>
+    );
+  }
 
   const handleCheckAvailability = () => {
     setIsWebViewVisible(true);
@@ -148,6 +165,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'white',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   imageContainer: {
     width: '100%',

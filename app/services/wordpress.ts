@@ -25,11 +25,14 @@ export async function fetchAllPages<T>(url: string): Promise<T[]> {
   return [firstPage, ...remainingPages].flat();
 }
 
+const NAMED_ENTITIES: Record<string, string> = { amp: '&', quot: '"', lt: '<', gt: '>', apos: "'", nbsp: ' ' };
+
+// Decodes in a single pass so decoded text is never decoded again
+// (e.g. `&amp;lt;` becomes `&lt;`, not `<`).
 export function decodeEntities(text: string): string {
-  return text
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+  return text.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (match, dec, hex, name) => {
+    if (dec) return String.fromCodePoint(Number(dec));
+    if (hex) return String.fromCodePoint(parseInt(hex, 16));
+    return NAMED_ENTITIES[name.toLowerCase()] ?? match;
+  });
 }

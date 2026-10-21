@@ -65,10 +65,10 @@ function namesFromIds(ids: number[], termMap: Map<number, string>): string[] {
   return ids.map((id) => termMap.get(id)).filter((name): name is string => Boolean(name));
 }
 
-const RESERVATION_FEATURES: Record<string, ReservationType> = {
-  Reservable: 'Reservable',
-  'By request': 'By request',
-};
+const RESERVATION_FEATURES: ReservationType[] = ['Reservable', 'By request'];
+
+const isReservationFeature = (feature: string): feature is ReservationType =>
+  (RESERVATION_FEATURES as string[]).includes(feature);
 
 const ACCESSIBLE = 'Accessible';
 
@@ -107,7 +107,6 @@ function toSpace(
 ): Space {
   const features = namesFromIds(apiSpace.space_features || [], taxonomyMaps.space_features);
   const support = namesFromIds(apiSpace.support_type || [], taxonomyMaps.support_type);
-  const reservationFeature = features.find((feature) => feature in RESERVATION_FEATURES);
 
   // Cornell's API no longer exposes the ACF fields (description, building,
   // booking ID); `url` links to the page that still shows them.
@@ -119,10 +118,10 @@ function toSpace(
     imageUrl: imageMap.get(apiSpace.id),
     updatedAt: apiSpace.modified_gmt,
     spaceTypes: namesFromIds(apiSpace.space_type_2 || [], taxonomyMaps.space_type_2),
-    reservationType: reservationFeature ? RESERVATION_FEATURES[reservationFeature] : 'No reservation',
+    reservationType: features.find(isReservationFeature) ?? 'No reservation',
     soundLevels: namesFromIds(apiSpace.sound_level || [], taxonomyMaps.sound_level),
     activities: namesFromIds(apiSpace.space_type || [], taxonomyMaps.space_type),
-    amenities: features.filter((feature) => !(feature in RESERVATION_FEATURES) && feature !== ACCESSIBLE),
+    amenities: features.filter((feature) => !isReservationFeature(feature) && feature !== ACCESSIBLE),
     audiences: namesFromIds(apiSpace.audience_type || [], taxonomyMaps.audience_type),
     accessible: features.includes(ACCESSIBLE) || support.includes(ACCESSIBLE),
     support: support.filter((item) => item !== ACCESSIBLE),

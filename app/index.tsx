@@ -197,50 +197,51 @@ export default function Index() {
 
           <ScrollView style={layoutStyles.scrollContent}>
             <View style={[layoutStyles.container, isGridView ? layoutStyles.grid : layoutStyles.list]}>
-              {filteredSpaces.map((space) => (
-                <TouchableOpacity 
-                  key={space.id}
-                  onPress={() => handlePressSpace(space.id)}
-                >
-                  <View 
-                    style={[
-                      cardStyles.card,
-                      isGridView ? dynamicStyles.gridCard : cardStyles.listCard
-                    ]}
+              {filteredSpaces.map((space) => {
+                const library = libraryOf(space, libraries);
+                return (
+                  <TouchableOpacity
+                    key={space.id}
+                    onPress={() => handlePressSpace(space.id)}
                   >
-                    <View style={isGridView ? null : dynamicStyles.listImageContainer}>
-                      <Image
-                        source={space.imageUrl ? { uri: space.imageUrl } : require('../assets/images/placeholder.avif')}
-                        style={
-                          isGridView ? dynamicStyles.gridImage : dynamicStyles.listImage
-                        }
-                        resizeMode="cover"
-                      />
-                    </View>
-                    <View style={cardStyles.cardContent}>
-                      <Text style={typographyStyles.title}>{space.title}</Text>
-                      {libraryOf(space, libraries) && (
-                        <Text style={typographyStyles.location}>{libraryOf(space, libraries)?.name}</Text>
-                      )}
-                      <View style={layoutStyles.tags}>
-                        {space.spaceTypes.map(type => (
-                          <Text key={type} style={[layoutStyles.tag, getTagStyle('spaceType')]}>
-                            {type}
+                    <View 
+                      style={[
+                        cardStyles.card,
+                        isGridView ? dynamicStyles.gridCard : cardStyles.listCard
+                      ]}
+                    >
+                      <View style={isGridView ? null : dynamicStyles.listImageContainer}>
+                        <Image
+                          source={space.imageUrl ? { uri: space.imageUrl } : require('../assets/images/placeholder.avif')}
+                          style={
+                            isGridView ? dynamicStyles.gridImage : dynamicStyles.listImage
+                          }
+                          resizeMode="cover"
+                        />
+                      </View>
+                      <View style={cardStyles.cardContent}>
+                        <Text style={typographyStyles.title}>{space.title}</Text>
+                        {library && <Text style={typographyStyles.location}>{library.name}</Text>}
+                        <View style={layoutStyles.tags}>
+                          {space.spaceTypes.map(type => (
+                            <Text key={type} style={[layoutStyles.tag, getTagStyle('spaceType')]}>
+                              {type}
+                            </Text>
+                          ))}
+                          <Text style={[layoutStyles.tag, getTagStyle('reservationType')]}>
+                            {space.reservationType}
                           </Text>
-                        ))}
-                        <Text style={[layoutStyles.tag, getTagStyle('reservationType')]}>
-                          {space.reservationType}
-                        </Text>
-                        {space.soundLevels[0] && (
-                          <Text style={[layoutStyles.tag, getTagStyle('soundLevel')]}>
-                            {space.soundLevels[0]}
-                          </Text>
-                        )}
+                          {space.soundLevels[0] && (
+                            <Text style={[layoutStyles.tag, getTagStyle('soundLevel')]}>
+                              {space.soundLevels[0]}
+                            </Text>
+                          )}
+                        </View>
                       </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         </View>
