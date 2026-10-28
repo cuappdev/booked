@@ -2,20 +2,21 @@ import { Library, LibraryIndex } from './Library';
 
 export type ReservationType = 'Reservable' | 'By request' | 'No reservation';
 
-// A single room or study area, from Cornell's `library_spaces` endpoint.
+// A single room or study area, as served by booked-backend's `/rooms`.
 export interface Space {
-  id: number;
+  id: string;
   slug: string;
   title: string;
   // Cornell's page for the space; it holds the description and Reserve link
-  // that the API no longer exposes.
-  url: string;
-  imageUrl?: string;
-  updatedAt: string;
+  // that Cornell's API no longer exposes.
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  // When Cornell last edited the space.
+  sourceUpdatedAt: string | null;
 
-  // The API doesn't say which library a space belongs to, so this stays
-  // unset until a sync from the space's page fills it in.
-  libraryId?: number;
+  // Cornell's API doesn't say which library a space belongs to, so this stays
+  // empty until the backend reads it from the space's page.
+  libraryId: string | null;
   spaceTypes: string[];
   reservationType: ReservationType;
   soundLevels: string[];
@@ -27,7 +28,7 @@ export interface Space {
 }
 
 export function libraryOf(space: Space, libraries: LibraryIndex): Library | undefined {
-  return space.libraryId === undefined ? undefined : libraries.get(space.libraryId);
+  return space.libraryId ? libraries.get(space.libraryId) : undefined;
 }
 
 export type FacetKey =
@@ -96,5 +97,8 @@ export const SORTS: Record<SortKey, Sort> = {
     },
   },
   quietest: { label: 'Quietest', compare: (a, b) => quietestRank(a) - quietestRank(b) || byTitle(a, b) },
-  recentlyUpdated: { label: 'Recently Updated', compare: (a, b) => b.updatedAt.localeCompare(a.updatedAt) },
+  recentlyUpdated: {
+    label: 'Recently Updated',
+    compare: (a, b) => (b.sourceUpdatedAt ?? '').localeCompare(a.sourceUpdatedAt ?? ''),
+  },
 };

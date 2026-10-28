@@ -1,18 +1,15 @@
-// A library building, from Cornell's `unit_libraries` endpoint.
+// A library building, as served by booked-backend's `/libraries`.
 export interface Library {
-  id: number;
+  id: string;
   slug: string;
   name: string;
-  address?: string;
-  mapUrl?: string;
-  hoursUrl?: string;
-  website?: string;
-  referencePhone?: string;
-  circulationPhone?: string;
-  email?: string;
-  photoUrl?: string;
-  floorPlanUrl?: string;
-  strengths?: string;
+  address: string | null;
+  mapUrl: string | null;
+  hoursUrl: string | null;
+  phone: string | null;
+  email: string | null;
+  imageUrl: string | null;
+  websiteUrl: string | null;
 }
 
-export type LibraryIndex = Map<number, Library>;
+export type LibraryIndex = Map<string, Library>;

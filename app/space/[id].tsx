@@ -1,9 +1,8 @@
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { Space } from "../models/Space";
-import { Library } from "../models/Library";
-import { fetchSpace } from "../services/spaceService";
-import { fetchLibraries } from "../services/libraryService";
+import { Space, libraryOf } from "../models/Space";
+import { Library, LibraryIndex } from "../models/Library";
+import { fetchSpace, fetchLibraries } from "../services/api";
 import { TagType, getTagStyle, baseTagStyle } from '../styles/tags';
 import { WebViewModal } from '../components/WebViewModal';
 import { useState, useEffect } from 'react';
@@ -22,10 +21,10 @@ export default function SpaceDetails() {
   useEffect(() => {
     setIsLoading(true);
     // Libraries only add optional details, so a failure shouldn't hide the space.
-    Promise.all([fetchSpace(Number(id)), fetchLibraries().catch(() => new Map<number, Library>())])
+    Promise.all([fetchSpace(id), fetchLibraries().catch((): LibraryIndex => new Map())])
       .then(([spaceData, libraries]) => {
         setSpace(spaceData);
-        setLibrary(spaceData?.libraryId === undefined ? undefined : libraries.get(spaceData.libraryId));
+        setLibrary(spaceData ? libraryOf(spaceData, libraries) : undefined);
       })
       .catch(error => console.error('Error loading space:', error))
       .finally(() => setIsLoading(false));
@@ -129,7 +128,7 @@ export default function SpaceDetails() {
                 {space.reservationType}
               </Text>
             </View>
-            {space.reservationType === 'Reservable' && (
+            {space.reservationType === 'Reservable' && space.sourceUrl && (
               <TouchableOpacity 
                 style={[styles.availabilityButton, { backgroundColor: colors.primary }]}
                 onPress={handleCheckAvailability}
@@ -148,11 +147,13 @@ export default function SpaceDetails() {
           </View>
         </View>
       </ScrollView>
-      <WebViewModal
-        visible={isWebViewVisible}
-        url={space.url}
-        onClose={() => setIsWebViewVisible(false)}
-      />
+      {space.sourceUrl && (
+        <WebViewModal
+          visible={isWebViewVisible}
+          url={space.sourceUrl}
+          onClose={() => setIsWebViewVisible(false)}
+        />
+      )}
       <WebViewModal
         visible={isHelpViewVisible}
         url="https://library.cornell.edu/get-help/ask/"

@@ -1,8 +1,7 @@
 import { ScrollView, Text, View, Image, TouchableOpacity, SafeAreaView, useWindowDimensions, TouchableWithoutFeedback, Keyboard, ActivityIndicator } from "react-native";
 import { useState, useMemo, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetchSpaces } from './services/spaceService';
-import { fetchLibraries } from './services/libraryService';
+import { fetchSpaces, fetchLibraries } from './services/api';
 import { SearchBar } from "./components/SearchBar";
 import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
@@ -40,14 +39,14 @@ export default function Index() {
     loadData();
   }, []);
 
-  const loadData = async ({ refresh = false } = {}) => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
       setError(null);
       const [spaceData, libraryData] = await Promise.all([
-        fetchSpaces({ refresh }),
+        fetchSpaces(),
         // Libraries only add optional details, so a failure shouldn't hide the spaces.
-        fetchLibraries({ refresh }).catch((): LibraryIndex => new Map()),
+        fetchLibraries().catch((): LibraryIndex => new Map()),
       ]);
       setSpaces(spaceData);
       setLibraries(libraryData);
@@ -106,7 +105,7 @@ export default function Index() {
     await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
   };
 
-  const handlePressSpace = (id: number) => {
+  const handlePressSpace = (id: string) => {
     router.push(`/space/${id}`);
   };
 
@@ -152,7 +151,7 @@ export default function Index() {
           <Text style={[typographyStyles.title, { color: colors.error }]}>Error: {error}</Text>
           <TouchableOpacity 
             style={[headerStyles.viewToggle, { marginTop: spacing.md }]}
-            onPress={() => loadData({ refresh: true })}
+            onPress={() => loadData()}
           >
             <Text style={{ color: colors.primary }}>Retry</Text>
           </TouchableOpacity>
