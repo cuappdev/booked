@@ -1,7 +1,7 @@
 import { ScrollView, Text, View, Image, TouchableOpacity, SafeAreaView, useWindowDimensions, TouchableWithoutFeedback, Keyboard, ActivityIndicator } from "react-native";
 import { useState, useMemo, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { fetchLibrarySpaces } from './services/libraryService';
+import { fetchSpaces, fetchLibraries } from './services/api';
 import { SearchBar } from "./components/SearchBar";
 import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
@@ -12,7 +12,8 @@ import { layoutStyles } from './styles/components/layout';
 import { headerStyles } from './styles/components/header';
 import { cardStyles, createCardStyles } from './styles/components/card';
 import { typographyStyles } from './styles/components/typography';
-import { Library } from './models/Library';
+import { Space, FacetSelection, SORTS, SortKey, matchesFacets, libraryOf } from './models/Space';
+import { LibraryIndex } from './models/Library';
 
 const RECENT_SEARCHES_KEY = "recent_searches";
 const MAX_RECENT_SEARCHES = 5;
@@ -21,8 +22,10 @@ export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isGridView, setIsGridView] = useState(true);
-  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
-  const [libraries, setLibraries] = useState<Library[]>([]);
+  const [selectedFilters, setSelectedFilters] = useState<FacetSelection>({});
+  const [sortKey] = useState<SortKey>('title');
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [libraries, setLibraries] = useState<LibraryIndex>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,18 +36,23 @@ export default function Index() {
 
   useEffect(() => {
     loadRecentSearches();
-    loadLibraries();
+    loadData();
   }, []);
 
-  const loadLibraries = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchLibrarySpaces();
-      setLibraries(data);
+      const [spaceData, libraryData] = await Promise.all([
+        fetchSpaces(),
+        // Libraries only add optional details, so a failure shouldn't hide the spaces.
+        fetchLibraries().catch((): LibraryIndex => new Map()),
+      ]);
+      setSpaces(spaceData);
+      setLibraries(libraryData);
     } catch (err) {
       setError('Failed to load library spaces');
-      console.error('Error loading libraries:', err);
+      console.error('Error loading spaces:', err);
     } finally {
       setIsLoading(false);
     }
@@ -97,61 +105,31 @@ export default function Index() {
     await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
   };
 
-  const handlePressLibrary = (id: number) => {
-    router.push(`/library/${id}`);
+  const handlePressSpace = (id: string) => {
+    router.push(`/space/${id}`);
   };
 
-  const handleToggleFilter = (filter: string, type: TagType) => {
-    setSelectedFilters(prev => {
-      const next = new Set(prev);
-      if (next.has(filter)) {
-        next.delete(filter);
-      } else {
-        Array.from(next).forEach(f => {
-          if (type === 'category' && f === filter) {
-            next.delete(f);
-          } else if (type === 'soundLevel' && f === filter) {
-            next.delete(f);
-          } else if (type === 'spaceType' && f === filter) {
-            next.delete(f);
-          } else if (type === 'spaceFeatures' && f === filter) {
-            next.delete(f);
-          } else if (type === 'audienceTypes' && f === filter) {
-            next.delete(f);
-          } else if (type === 'reservationType' && f === filter) {
-            next.delete(f);
-          }
-        });
-        next.add(filter);
-      }
-      return next;
-    });
+  const handleChangeFilter = (facet: TagType, value: string | undefined) => {
+    setSelectedFilters(prev => ({ ...prev, [facet]: value }));
   };
 
-  const filteredLibraries = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    return libraries.filter((library) => {
-      const matchesSearch = 
-        library.title.toLowerCase().includes(query) ||
-        library.spaceInfo.description.toLowerCase().includes(query) ||
-        library.spaceInfo.category.toLowerCase().includes(query) ||
-        library.features.spaceFeatures.some(feature => 
-          feature.toLowerCase().includes(query)
-        ) ||
-        library.features.soundLevel.some(level => 
-          level.toLowerCase().includes(query)
-        );
-
-      const matchesFilters = selectedFilters.size === 0 || Array.from(selectedFilters).every(filter => 
-        library.spaceInfo.category === filter ||
-        library.features.soundLevel.includes(filter) ||
-        library.features.spaceType.includes(filter) ||
-        library.spaceInfo.reservationType === filter
-      );
-
-      return matchesSearch && matchesFilters;
-    });
-  }, [searchQuery, selectedFilters, libraries]);
+  const filteredSpaces = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return spaces
+      .filter((space) => {
+        const searchable = [
+          space.title,
+          libraryOf(space, libraries)?.name,
+          ...space.spaceTypes,
+          ...space.soundLevels,
+          ...space.activities,
+          ...space.amenities,
+        ];
+        const matchesSearch = !query || searchable.some(text => text?.toLowerCase().includes(query));
+        return matchesSearch && matchesFacets(space, selectedFilters, libraries);
+      })
+      .sort((a, b) => SORTS[sortKey].compare(a, b, libraries));
+  }, [searchQuery, selectedFilters, sortKey, spaces, libraries]);
 
   const dynamicStyles = createCardStyles(gridCardSize, listImageSize);
 
@@ -173,7 +151,7 @@ export default function Index() {
           <Text style={[typographyStyles.title, { color: colors.error }]}>Error: {error}</Text>
           <TouchableOpacity 
             style={[headerStyles.viewToggle, { marginTop: spacing.md }]}
-            onPress={loadLibraries}
+            onPress={() => loadData()}
           >
             <Text style={{ color: colors.primary }}>Retry</Text>
           </TouchableOpacity>
@@ -209,60 +187,61 @@ export default function Index() {
               </TouchableOpacity>
             </View>
             <FilterBar
-              selectedFilters={selectedFilters}
-              onToggleFilter={handleToggleFilter}
+              selection={selectedFilters}
+              onChange={handleChangeFilter}
+              onClearAll={() => setSelectedFilters({})}
+              spaces={spaces}
               libraries={libraries}
             />
           </View>
 
           <ScrollView style={layoutStyles.scrollContent}>
             <View style={[layoutStyles.container, isGridView ? layoutStyles.grid : layoutStyles.list]}>
-              {filteredLibraries.map((library) => (
-                <TouchableOpacity 
-                  key={library.id}
-                  onPress={() => handlePressLibrary(library.id)}
-                >
-                  <View 
-                    style={[
-                      cardStyles.card,
-                      isGridView ? dynamicStyles.gridCard : cardStyles.listCard
-                    ]}
+              {filteredSpaces.map((space) => {
+                const library = libraryOf(space, libraries);
+                return (
+                  <TouchableOpacity
+                    key={space.id}
+                    onPress={() => handlePressSpace(space.id)}
                   >
-                    <View style={isGridView ? null : dynamicStyles.listImageContainer}>
-                      <Image
-                        source={library.imageUrl ? { uri: library.imageUrl } : require('../assets/images/placeholder.avif')}
-                        style={
-                          isGridView ? dynamicStyles.gridImage : dynamicStyles.listImage
-                        }
-                        resizeMode="cover"
-                      />
-                    </View>
-                    <View style={cardStyles.cardContent}>
-                      <Text style={typographyStyles.title}>{library.title}</Text>
-                      <Text style={typographyStyles.location}>{library.spaceInfo.library}</Text>
-                      {!isGridView && (
-                        <Text 
-                          style={typographyStyles.description} 
-                          numberOfLines={2}
-                        >
-                          {library.spaceInfo.description}
-                        </Text>
-                      )}
-                      <View style={layoutStyles.tags}>
-                        <Text style={[layoutStyles.tag, getTagStyle('category')]}>
-                          {library.spaceInfo.category}
-                        </Text>
-                        <Text style={[layoutStyles.tag, getTagStyle('reservationType')]}>
-                          {library.spaceInfo.reservationType}
-                        </Text>
-                        <Text style={[layoutStyles.tag, getTagStyle('soundLevel')]}>
-                          {library.features.soundLevel[0]}
-                        </Text>
+                    <View 
+                      style={[
+                        cardStyles.card,
+                        isGridView ? dynamicStyles.gridCard : cardStyles.listCard
+                      ]}
+                    >
+                      <View style={isGridView ? null : dynamicStyles.listImageContainer}>
+                        <Image
+                          source={space.imageUrl ? { uri: space.imageUrl } : require('../assets/images/placeholder.avif')}
+                          style={
+                            isGridView ? dynamicStyles.gridImage : dynamicStyles.listImage
+                          }
+                          resizeMode="cover"
+                        />
+                      </View>
+                      <View style={cardStyles.cardContent}>
+                        <Text style={typographyStyles.title}>{space.title}</Text>
+                        {library && <Text style={typographyStyles.location}>{library.name}</Text>}
+                        <View style={layoutStyles.tags}>
+                          {space.spaceTypes.map(type => (
+                            <Text key={type} style={[layoutStyles.tag, getTagStyle('spaceType')]}>
+                              {type}
+                            </Text>
+                          ))}
+                          <Text style={[layoutStyles.tag, getTagStyle('reservationType')]}>
+                            {space.reservationType}
+                          </Text>
+                          {space.soundLevels[0] && (
+                            <Text style={[layoutStyles.tag, getTagStyle('soundLevel')]}>
+                              {space.soundLevels[0]}
+                            </Text>
+                          )}
+                        </View>
                       </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         </View>

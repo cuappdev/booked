@@ -7,17 +7,11 @@ import { filterDropdownStyles as styles } from '../styles/components/filter';
 interface FilterDropdownProps {
   visible: boolean;
   position: { x: number; y: number };
-  category: { type: TagType; values: string[] };
+  category: { type: TagType; label: string; values: string[] };
   selectedValue: string | undefined;
   onSelect: (value: string) => void;
   onClose: () => void;
 }
-
-const formatCategoryName = (name: string): string => {
-  return name
-    .replace(/([A-Z])/g, ' $1').trim()
-    .replace(/^./, str => str.toUpperCase());
-};
 
 export function FilterDropdown({ 
   visible, 
@@ -29,7 +23,7 @@ export function FilterDropdown({
 }: FilterDropdownProps) {
   if (!visible) return null;
 
-  const tagStyle = getTagStyle(category.type) || { color: colors.text, backgroundColor: colors.background };
+  const tagStyle = getTagStyle(category.type);
 
   return (
     <>
@@ -67,7 +61,7 @@ export function FilterDropdown({
                   { color: tagStyle.color }
                 ]}
               >
-                All {formatCategoryName(category.type)}
+                All {category.label}
               </Text>
             </TouchableOpacity>
             {category.values.map((value) => (

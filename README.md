@@ -30,8 +30,8 @@ Maintained by [Cornell AppDev](https://www.cornellappdev.com/).
 - Figma (for UI/UX design)
 
 ## Backend
-- TypeScript
-- API client that fetches and normalizes data from Cornell Library API
+- [booked-backend](https://github.com/cuappdev/booked-backend): Express, TypeScript and PostgreSQL
+- Syncs spaces and libraries from the Cornell Library API every hour; the app reads them from the backend
 
 # 📱 Try It Out
 - iOS: [App Store Listing](https://apps.apple.com/us/app/booked-cornell-libraries/id6745230909)
@@ -41,12 +41,18 @@ Maintained by [Cornell AppDev](https://www.cornellappdev.com/).
 ## Prerequisites
 - Node.js & npm
 - Expo CLI
+- A running [booked-backend](https://github.com/cuappdev/booked-backend) (see its README)
 
 ## Run Locally
+Point the app at your backend by copying `.env.example` to `.env.local` and
+setting `EXPO_PUBLIC_API_URL`. `localhost` works in the iOS simulator; on a
+physical device or Android emulator, use your computer's LAN IP instead.
+
 ```
 git clone https://github.com/jjennifergu/booked.git
 cd booked
 npm install
+cp .env.example .env.local
 npx expo start
 ```
 
